@@ -20,10 +20,10 @@ var httpserver = server.listen(8080,()=>{
   });
 
   var connection = mysql.createConnection({
-    host: "dbinstance.c9x1ihhl8wn1.us-east-2.rds.amazonaws.com",
-    user: "masternow2",
-    database: "example",
-    password: "dnflwlrmaakssk",
+    host: "",
+    user: "",
+    database: "",
+    password: "",
     port: 3306,
     multipleStatements: true
 });
