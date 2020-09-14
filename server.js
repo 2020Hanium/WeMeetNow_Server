@@ -99,7 +99,7 @@ io.on('connection', (socket) => {
     socket.on('disconnect', function (data) {
 
         socketList.splice(socketList.indexOf(socket), 1);
-        socket.leave(party_name);
+        
         console.log(socket.authId + 'LOGOUT!');
 
     });
@@ -227,77 +227,66 @@ io.on('connection', (socket) => {
     //받아올 값 : party_name, party_time, members
 
     socket.on('open_party', function (open_data) {
-        var head = socket.userEmail;
+        var head = socket.authId;
         var party_name = open_data.party_name;
-
-        //시간받아오는거 고비 1
         var party_time = open_data.party_time;
         var party_placelat = null;
         var party_placelong = null;
-        var party_list = new Array(100);
+        
 
-        var accept_partyCount = 0;
+        console.log(open_data.members);
+        
         var total_partyCount = 1;
 
-        var open_sql = 'INSERT INTO party_head (party_head, party_name, party_placelat, party_placelong, time_info) VALUES (?, ?, ?, ?, ?, ?)'
+        var open_sql = 'INSERT INTO party_head (party_head, party_name, party_placelat, party_placelong, time_info) VALUES (?, ?, ?, ?, ?)'
         var param = [head, party_name, party_placelat, party_placelong, party_time];
 
         connection.query(open_sql, param, function (err, result) {
 
             if (err) {
                 console.log(err);
+                socket.emit('fail_open_party');
             } else {
                 var goal_party;
 
-                //members 는 초대받을 사람의 아이디
-                //open_data.members[i] 형식으로 넣는 것도 고려해야함
-                //아이디 저장하는거 고비 2
-                //party_list.push(open_data.members); 이것도 고려
-                party_list = open_data.members;
+                var party_list = open_data.members;
+                console.log(party_list);
+                total_partyCount = total_partyCount + party_list.length;
 
-                for (i = 0; i < (socketList.length); i++) {
+                for (i = 0; i < (party_list.length); i++) {
 
-                    if (socketList[i].userEmail == party_list[i]) {
-                        goal_party = socketList[i].id
+                    for(j = 0; j < socketList.length; j++){
 
-                        socket.to(goal_party).emit('invite_party', { party_name: party_name, head: head });
-                        total_partyCount = total_partyCount + 1;
+                        console.log(party_list[i]);
+                        console.log(socketList[j].userName);
 
-                    } else {
-                        console.log('MAKING PARTY ...')
+                        if ( party_list[i] == socketList[j].userName) {
+                            goal_party = socketList[j].id;
+    
+                            console.log('FOUNDED');
+                            socket.to(goal_party).emit('invite_party', { party_name: party_name, head: head, total_partyCount: total_partyCount });
+                            
+                        } else {
+                            console.log('MAKING PARTY ...')
+                        }
                     }
                 }
-
-                socket.join(party_name);
-                socket.party_name = party_name;
+                
                 console.log("파티 개설 성공!");
-                accept_partyCount = accept_partyCount + 1;
 
-                socket.emit('ok_partyhead', { party_name: party_name, total_partyCount: total_partyCount, accept_partyCount: accept_partyCount });
+                socket.emit('ok_partyhead', { party_name: party_name, total_partyCount: total_partyCount });
             }
-        });
-
-        var head_sql = 'INSERT INTO party_memeber (party_member, party_head, party_name) VALUES (?, ?, ?)'
-        var params_head = [head, head, party_name]
-
-        connection.query(head_sql, params_head, function(err, result){
-            if(err) {
-                console.log(err);
-            }else { 
-                console.log('HEAD REGIST OK');
-            }
-
         });
     });
 
     //파티 초대에 응했을 경우의 기능
-    //받아올 값 : total_partyCount, accept_partyCount, member_placelat, member_placelong, head, party_name
+    //받아올 값 : total_partyCount, member_placelat, member_placelong, head, party_name
 
     socket.on('join_party', function (join_data) {
         console.log('join_party on')
 
         var total_partyCount = join_data.total_partyCount;
-        var accept_partyCount = join_data.accept_partyCount;
+        
         var member_placelat = join_data.member_placelat;
         var member_placelong = join_data.member_placelong;
 
@@ -308,24 +297,47 @@ io.on('connection', (socket) => {
         socket.member_placelat = member_placelat;
         socket.member_placelong = member_placelong;
 
-        var sql = 'INSERT INTO party_memeber (party_member, party_head, party_name) VALUES (?, ?, ?)';
+        var sql = 'INSERT INTO party_member (party_member, party_head, party_name) VALUES (?, ?, ?)';
         var params = [member, head, party_name];
 
         connection.query(sql, params, function (err, result) {
             if (err) {
                 console.log(err);
+                socket.emit('FAIL_INSERT_MEMBER');
             } else {
                 console.log('MEMBER REGIST OK');
-                accept_partyCount = accept_partyCount + 1;
                 socket.join(party_name);
                 socket.party_name = party_name;
-                socket.emit('partyCounter', { accept_partyCount: accept_partyCount });
             }
         });
 
-        if (total_partyCount == accept_partyCount) {
-            socket.emit('real_party');
-        }
+        var sql_member = 'select party_member from party_member where party_name = ? and party_head = ?'
+        var param_member = [party_name, head];
+
+        connection.query(sql_member, param_member, function(err, result) {
+            if(err) {
+                console.log(err);
+                socket.emit('FAIL_SELECT_MEMBER');
+            } else {
+                console.log('member_count on');
+                var member_count = result.length;
+
+                for(i = 0; i < socketList.length; i++) {
+                    if (socketList[i].authId = head) {
+
+                        var headAddress = socketList[i].id;
+                        socket.to(headAddress).emit('member_count', {member_count: member_count});
+
+                    } else {
+                        console.log('HEAD MISS');
+                    }
+                }
+
+                if (total_partyCount == member_count) {
+                    socket.emit('FULL_PARTY');
+                }
+            }
+        });
     });
 
     //파티 조회 기능
