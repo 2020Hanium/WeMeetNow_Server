@@ -228,13 +228,15 @@ io.on('connection', (socket) => {
 
     socket.on('open_party', function (open_data) {
         var head = socket.authId;
+        var head_name = socket.userName;
         var party_name = open_data.party_name;
         var party_time = open_data.party_time;
         var party_placelat = null;
         var party_placelong = null;
         
-
-        console.log(open_data.members);
+        console.log("open_party start");
+        console.log(open_data);
+        console.log(open_data.members.length);
         
         var total_partyCount = 1;
 
@@ -248,23 +250,22 @@ io.on('connection', (socket) => {
                 socket.emit('fail_open_party');
             } else {
                 var goal_party;
+                
 
-                var party_list = open_data.members;
-                console.log(party_list);
-                total_partyCount = total_partyCount + party_list.length;
+                total_partyCount += open_data.members.length;
 
-                for (i = 0; i < (party_list.length); i++) {
+                for (i = 0; i < (open_data.members.length); i++) {
 
                     for(j = 0; j < socketList.length; j++){
 
-                        console.log(party_list[i]);
+                        console.log(open_data.members[i]);
                         console.log(socketList[j].userName);
 
-                        if ( party_list[i] == socketList[j].userName) {
+                        if ( open_data.members[i] == socketList[j].userName) {
                             goal_party = socketList[j].id;
     
                             console.log('FOUNDED');
-                            socket.to(goal_party).emit('invite_party', { party_name: party_name, head: head, total_partyCount: total_partyCount });
+                            socket.to(goal_party).emit('invite_party', { party_name: party_name, head: head, total_partyCount: total_partyCount, head_name: head_name });
                             
                         } else {
                             console.log('MAKING PARTY ...')
@@ -306,8 +307,10 @@ io.on('connection', (socket) => {
                 socket.emit('FAIL_INSERT_MEMBER');
             } else {
                 console.log('MEMBER REGIST OK');
+                
                 socket.join(party_name);
                 socket.party_name = party_name;
+                socket.emit('SUCCESS_INSERT_MEMBER');
             }
         });
 
