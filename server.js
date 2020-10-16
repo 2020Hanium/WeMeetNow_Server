@@ -62,7 +62,6 @@ io.on('connection', (socket) => {
 
         var sql = 'select * from Users_test1 where UserEmail = ?';
 
-
         connection.query(sql, userEmail, function (err, result) {
 
             if (err) {
@@ -251,7 +250,6 @@ io.on('connection', (socket) => {
             } else {
                 var goal_party;
                 
-
                 total_partyCount += open_data.members.length;
 
                 for (i = 0; i < (open_data.members.length); i++) {
@@ -285,6 +283,8 @@ io.on('connection', (socket) => {
 
     socket.on('join_party', function (join_data) {
         console.log('join_party on')
+        console.log(join_data)
+
 
         var total_partyCount = join_data.total_partyCount;
         
@@ -298,24 +298,43 @@ io.on('connection', (socket) => {
         socket.member_placelat = member_placelat;
         socket.member_placelong = member_placelong;
 
-        var sql = 'INSERT INTO party_member (party_member, party_head, party_name) VALUES (?, ?, ?)';
-        var params = [member, head, party_name];
+        var party_time;
+
+        var time_sql = 'select time_info from party_head where party_name = ?'
+        var time_param = [party_name];
+
+        connection.query(time_sql, time_param, function(err, data) {
+            if(err) {
+                console.log(err);
+                socket.emit('FAIL_TIME_INFO');
+            } else {
+                console.log(data);
+                console.log(data.time_info);
+                party_time = data.time_info;
+                console.log(party_time);
+            }
+        });
+
+
+        var sql = 'INSERT INTO party_member (party_member, party_head, party_name, party_member_placelat, party_member_placelong) VALUES (?, ?, ?, ?, ?)';
+        var params = [member, head, party_name, member_placelat, member_placelong];
 
         connection.query(sql, params, function (err, result) {
             if (err) {
                 console.log(err);
                 socket.emit('FAIL_INSERT_MEMBER');
             } else {
-                console.log('MEMBER REGIST OK');
-                
                 socket.join(party_name);
                 socket.party_name = party_name;
                 socket.emit('SUCCESS_INSERT_MEMBER');
+
+                console.log('MEMBER REGIST OK');
             }
         });
 
-        var sql_member = 'select party_member from party_member where party_name = ? and party_head = ?'
-        var param_member = [party_name, head];
+        
+        var sql_member = 'select * from party_member where party_name = ?'
+        var param_member = [party_name];
 
         connection.query(sql_member, param_member, function(err, result) {
             if(err) {
@@ -323,8 +342,15 @@ io.on('connection', (socket) => {
                 socket.emit('FAIL_SELECT_MEMBER');
             } else {
                 console.log('member_count on');
-                var member_count = result.length;
 
+                var member_count = result.length;
+                var time_info = party_time;
+
+                //socket.emit('member_count', {member_count: member_count});
+                io.sockets.in(party_name).emit('member_count', {member_count: member_count, time_info: time_info});
+
+
+                /*
                 for(i = 0; i < socketList.length; i++) {
                     if (socketList[i].authId = head) {
 
@@ -336,19 +362,23 @@ io.on('connection', (socket) => {
                     }
                 }
 
+                */
+
                 if (total_partyCount == member_count) {
                     socket.emit('FULL_PARTY');
                 }
             }
         });
+
     });
 
+    /*
     //파티 조회 기능
     socket.on('refresh_party', function (data) {
         console.log('refresh_party on');
-        console.log(io.sockets.clients(party_name));
+        io.sockets.clients(socket.party_name);
 
-        var myparty = data.party_name;
+        var myparty = socket.party_name;
         var members = new Array();
 
         var sql = 'select party_member from party_member where party_name = ?'
@@ -372,7 +402,12 @@ io.on('connection', (socket) => {
             }
         })
     });
-
+    */
     //파티 장소 선택 기능
+
+    socket.on('RTL', function(data) {
+
+
+    });
 
 });
