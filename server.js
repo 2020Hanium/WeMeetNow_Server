@@ -24,7 +24,8 @@ var httpserver = server.listen(8080,()=>{
     database: "",
     password: "",
     port: 3306,
-    multipleStatements: true
+    multipleStatements: true,
+    dateStrings:'date'
 });
 
 var socketList = [];
@@ -299,6 +300,7 @@ io.on('connection', (socket) => {
         socket.member_placelong = member_placelong;
 
         var party_time;
+       
 
         var time_sql = 'select time_info from party_head where party_name = ?'
         var time_param = [party_name];
@@ -309,9 +311,10 @@ io.on('connection', (socket) => {
                 socket.emit('FAIL_TIME_INFO');
             } else {
                 console.log(data);
-                console.log(data.time_info);
-                party_time = data.time_info;
+                
+                party_time = data[0].time_info;
                 console.log(party_time);
+                
             }
         });
 
