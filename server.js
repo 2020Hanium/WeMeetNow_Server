@@ -37,22 +37,41 @@ io.on('connection', (socket) => {
     //회원가입 기능
     socket.on('add_user', function (data) {
 
+        var dupleCounter = 0;
+
         var userEmail = data.userEmail;
         var userPwd = data.userPwd;
         var userName = data.userName;
 
-        var sql = 'INSERT INTO Users_test1 (UserEmail, UserPwd, UserName) VALUES (?, ?, ?)';
-        var params = [userEmail, userPwd, userName];
+        var sql_check = 'SELECT * FROM Users_test1 WHERE UserEmail = ?'
+        var params_check = [userEmail];
 
-        connection.query(sql, params, function (err, result) {
-            if (err) {
+        connection.query(sql_check, params_check, function(err, result) {
+            if(err) {
                 console.log(err);
-                socket.emit('fail_add_user');
             } else {
-                console.log('성공');
-                socket.emit('success_add_user');
+                if (result.length == 1) {
+                    socket.emit('already_join');
+                    dupleCounter = 1
+                } 
             }
         });
+
+        if (dupleCounter == 0) {
+
+            var sql = 'INSERT INTO Users_test1 (UserEmail, UserPwd, UserName) VALUES (?, ?, ?)';
+            var params = [userEmail, userPwd, userName];
+
+            connection.query(sql, params, function (err, result) {
+                if (err) {
+                    console.log(err);
+                    socket.emit('fail_add_user');
+                } else {
+                    console.log('성공');
+                    socket.emit('success_add_user');
+                }
+            });
+        }
     });
 
     //로그인 기능
@@ -107,23 +126,44 @@ io.on('connection', (socket) => {
     //친구 추가 기능
     socket.on('add_friend', function (data) {
 
+        var dupleCounter = 0;
+
         var findResult = false;
-        var besender = data.friendEmail;
+        var receiver = data.friendEmail;
+        var myEmail = socket.authId;
 
-        for (i = 0; i <= (socketList.length) - 1; i++) {
-            if (socketList[i].authId == besender) {
-                findResult = true;
-                var besenderName = socketList[i].userName
+        var sql = 'select * from friend where sender = ?'
+        var params= [myEmail];
 
-                console.log(besender + '/' + besenderName + "is founded!");
-                socket.emit("ok_add_friend", { id: besenderName });
+        connection.query(sql, params, function(err, result) {
+            if(err) {
+                console.log(err);
+            } else {
+                for(i = 0; i < result.length; i++) {
+                    if(receiver == result[i].receiver) {
+                        socket.emit('already_friend');
+                        dupleCounter = 1;
+                    }
+                }
+            }
+        });
 
-            } else { console.log("Searching...") }
-        }
+        if (dupleCounter == 0) {
 
-        if (findResult == false) {
-            socket.emit("false_add_friend");
-            //앱에서는 socket.on('false_add_friend')를 통해 검색 실패 알림
+            for (i = 0; i <= (socketList.length) - 1; i++) {
+                if (socketList[i].authId == receiver) {
+                    findResult = true;
+                    var receiverName = socketList[i].userName
+
+                    console.log(receiver + '/' + receiverName + "is founded!");
+                    socket.emit("ok_add_friend", { id: receiverName });
+
+                } else { console.log("Searching...") }
+            }
+
+            if (findResult == false) {
+                socket.emit("false_add_friend");
+            }
         }
     });
 
@@ -227,6 +267,9 @@ io.on('connection', (socket) => {
     //받아올 값 : party_name, party_time, members
 
     socket.on('open_party', function (open_data) {
+
+        var dupleCounter = 0;
+
         var head = socket.authId;
         var head_name = socket.userName;
         var party_name = open_data.party_name;
@@ -240,43 +283,62 @@ io.on('connection', (socket) => {
         
         var total_partyCount = 1;
 
-        var open_sql = 'INSERT INTO party_head (party_head, party_name, party_placelat, party_placelong, time_info) VALUES (?, ?, ?, ?, ?)'
-        var param = [head, party_name, party_placelat, party_placelong, party_time];
+        var sql = 'select * from party_head where party_head = ?'
+        var params= [head];
 
-        connection.query(open_sql, param, function (err, result) {
-
-            if (err) {
+        connection.query(sql, params, function(err, result) {
+            if(err) {
                 console.log(err);
-                socket.emit('fail_open_party');
             } else {
-                var goal_party;
-                
-                total_partyCount += open_data.members.length;
-
-                for (i = 0; i < (open_data.members.length); i++) {
-
-                    for(j = 0; j < socketList.length; j++){
-
-                        console.log(open_data.members[i]);
-                        console.log(socketList[j].userName);
-
-                        if ( open_data.members[i] == socketList[j].userName) {
-                            goal_party = socketList[j].id;
-    
-                            console.log('FOUNDED');
-                            socket.to(goal_party).emit('invite_party', { party_name: party_name, head: head, total_partyCount: total_partyCount, head_name: head_name });
-                            
-                        } else {
-                            console.log('MAKING PARTY ...')
-                        }
+                for(i = 0; i < result.length; i++) {
+                    if(party_name == result[i].party_name) {
+                        socket.emit('already_party');
+                        dupleCounter = 1;
                     }
                 }
-                
-                console.log("파티 개설 성공!");
-
-                socket.emit('ok_partyhead', { party_name: party_name, total_partyCount: total_partyCount });
             }
         });
+
+        if (dupleCounter == 0) {
+
+            var open_sql = 'INSERT INTO party_head (party_head, party_name, party_placelat, party_placelong, time_info) VALUES (?, ?, ?, ?, ?)'
+            var param = [head, party_name, party_placelat, party_placelong, party_time];
+
+            connection.query(open_sql, param, function (err, result) {
+
+                if (err) {
+                    console.log(err);
+                    socket.emit('fail_open_party');
+                } else {
+                    var goal_party;
+                    
+                    total_partyCount += open_data.members.length;
+
+                    for (i = 0; i < (open_data.members.length); i++) {
+
+                        for(j = 0; j < socketList.length; j++){
+
+                            console.log(open_data.members[i]);
+                            console.log(socketList[j].userName);
+
+                            if ( open_data.members[i] == socketList[j].userName) {
+                                goal_party = socketList[j].id;
+        
+                                console.log('FOUNDED');
+                                socket.to(goal_party).emit('invite_party', { party_name: party_name, head: head, total_partyCount: total_partyCount, head_name: head_name });
+                                
+                            } else {
+                                console.log('MAKING PARTY ...')
+                            }
+                        }
+                    }
+                    
+                    console.log("파티 개설 성공!");
+
+                    socket.emit('ok_partyhead', { party_name: party_name, total_partyCount: total_partyCount });
+                }
+            });
+        }
     });
 
     //파티 초대에 응했을 경우의 기능
