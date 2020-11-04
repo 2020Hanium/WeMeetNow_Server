@@ -15,18 +15,18 @@ res.sendFile(__dirname + '/index.html');
 });
 
 var httpserver = server.listen(8080,()=>{
-  console.log('Node app is running on port 8080');
+    console.log('Node app is running on port 8080');
+    });
+  
+    var connection = mysql.createConnection({
+      host: "",
+      user: "",
+      database: "",
+      password: "",
+      port: 3306,
+      multipleStatements: true,
+      dateStrings:'date'
   });
-
-  var connection = mysql.createConnection({
-    host: "",
-    user: "",
-    database: "",
-    password: "",
-    port: 3306,
-    multipleStatements: true,
-    dateStrings:'date'
-});
 
 var socketList = [];
 
@@ -36,8 +36,6 @@ io.on('connection', (socket) => {
 
     //회원가입 기능
     socket.on('add_user', function (data) {
-
-        var dupleCounter = 0;
 
         var userEmail = data.userEmail;
         var userPwd = data.userPwd;
@@ -52,26 +50,25 @@ io.on('connection', (socket) => {
             } else {
                 if (result.length == 1) {
                     socket.emit('already_join');
-                    dupleCounter = 1
-                } 
+                    console.log('already_join');
+                } else {
+
+                    var sql = 'INSERT INTO Users_test1 (UserEmail, UserPwd, UserName) VALUES (?, ?, ?)';
+                    var params = [userEmail, userPwd, userName];
+        
+                    connection.query(sql, params, function (err, result) {
+                        if (err) {
+                            console.log(err);
+                            socket.emit('fail_add_user');
+                        } else {
+                            console.log('성공');
+                            socket.emit('success_add_user');
+                        }
+                    });
+                    
+                }
             }
         });
-
-        if (dupleCounter == 0) {
-
-            var sql = 'INSERT INTO Users_test1 (UserEmail, UserPwd, UserName) VALUES (?, ?, ?)';
-            var params = [userEmail, userPwd, userName];
-
-            connection.query(sql, params, function (err, result) {
-                if (err) {
-                    console.log(err);
-                    socket.emit('fail_add_user');
-                } else {
-                    console.log('성공');
-                    socket.emit('success_add_user');
-                }
-            });
-        }
     });
 
     //로그인 기능
@@ -142,12 +139,30 @@ io.on('connection', (socket) => {
                 for(i = 0; i < result.length; i++) {
                     if(receiver == result[i].receiver) {
                         socket.emit('already_friend');
+                        console.log('already_friend');
                         dupleCounter = 1;
+                    } 
+                }  
+
+                if (dupleCounter == 0) {
+                    for (i = 0; i <= (socketList.length) - 1; i++) {
+                        if (socketList[i].authId == receiver) {
+                            findResult = true;
+                            var receiverName = socketList[i].userName
+        
+                            console.log(receiver + '/' + receiverName + "is founded!");
+                            socket.emit("ok_add_friend", { id: receiverName });
+        
+                        } else { console.log("Searching...") }
                     }
+                }
+                
+                if (findResult == false) {
+                    socket.emit("false_add_friend");
                 }
             }
         });
-
+/*
         if (dupleCounter == 0) {
 
             for (i = 0; i <= (socketList.length) - 1; i++) {
@@ -164,7 +179,7 @@ io.on('connection', (socket) => {
             if (findResult == false) {
                 socket.emit("false_add_friend");
             }
-        }
+        } */
     });
 
     //친신 온거 알려주는 기능
@@ -195,7 +210,6 @@ io.on('connection', (socket) => {
 
                 console.log('친구 신청을 보냈습니다.');
                 console.log('친구 아이디 : ' + besender);
-
 
             }
         });
@@ -268,8 +282,6 @@ io.on('connection', (socket) => {
 
     socket.on('open_party', function (open_data) {
 
-        var dupleCounter = 0;
-
         var head = socket.authId;
         var head_name = socket.userName;
         var party_name = open_data.party_name;
@@ -290,55 +302,50 @@ io.on('connection', (socket) => {
             if(err) {
                 console.log(err);
             } else {
-                for(i = 0; i < result.length; i++) {
-                    if(party_name == result[i].party_name) {
-                        socket.emit('already_party');
-                        dupleCounter = 1;
-                    }
+                if (result.length == 1) {
+                    socket.emit('already_party');
+                    console.log('already_party');
+                } else {
+                    var open_sql = 'INSERT INTO party_head (party_head, party_name, party_placelat, party_placelong, time_info) VALUES (?, ?, ?, ?, ?)'
+                    var param = [head, party_name, party_placelat, party_placelong, party_time];
+        
+                    connection.query(open_sql, param, function (err, result) {
+        
+                        if (err) {
+                            console.log(err);
+                            socket.emit('fail_open_party');
+                        } else {
+                            var goal_party;
+                            
+                            total_partyCount += open_data.members.length;
+        
+                            for (i = 0; i < (open_data.members.length); i++) {
+        
+                                for(j = 0; j < socketList.length; j++){
+        
+                                    console.log(open_data.members[i]);
+                                    console.log(socketList[j].userName);
+        
+                                    if ( open_data.members[i] == socketList[j].userName) {
+                                        goal_party = socketList[j].id;
+                
+                                        console.log('FOUNDED');
+                                        socket.to(goal_party).emit('invite_party', { party_name: party_name, head: head, total_partyCount: total_partyCount, head_name: head_name });
+                                        
+                                    } else {
+                                        console.log('MAKING PARTY ...')
+                                    }
+                                }
+                            }
+                            
+                            console.log("파티 개설 성공!");
+        
+                            socket.emit('ok_partyhead', { party_name: party_name, total_partyCount: total_partyCount });
+                        }
+                    });
                 }
             }
         });
-
-        if (dupleCounter == 0) {
-
-            var open_sql = 'INSERT INTO party_head (party_head, party_name, party_placelat, party_placelong, time_info) VALUES (?, ?, ?, ?, ?)'
-            var param = [head, party_name, party_placelat, party_placelong, party_time];
-
-            connection.query(open_sql, param, function (err, result) {
-
-                if (err) {
-                    console.log(err);
-                    socket.emit('fail_open_party');
-                } else {
-                    var goal_party;
-                    
-                    total_partyCount += open_data.members.length;
-
-                    for (i = 0; i < (open_data.members.length); i++) {
-
-                        for(j = 0; j < socketList.length; j++){
-
-                            console.log(open_data.members[i]);
-                            console.log(socketList[j].userName);
-
-                            if ( open_data.members[i] == socketList[j].userName) {
-                                goal_party = socketList[j].id;
-        
-                                console.log('FOUNDED');
-                                socket.to(goal_party).emit('invite_party', { party_name: party_name, head: head, total_partyCount: total_partyCount, head_name: head_name });
-                                
-                            } else {
-                                console.log('MAKING PARTY ...')
-                            }
-                        }
-                    }
-                    
-                    console.log("파티 개설 성공!");
-
-                    socket.emit('ok_partyhead', { party_name: party_name, total_partyCount: total_partyCount });
-                }
-            });
-        }
     });
 
     //파티 초대에 응했을 경우의 기능
@@ -361,8 +368,8 @@ io.on('connection', (socket) => {
         socket.member_placelong = member_placelong;
 
         var party_time;
-        var time_sql = 'select time_info from party_head where party_name = ?'
-        var time_param = [party_name];
+        var time_sql = 'select time_info from party_head where party_name = ? and party_head = ?'
+        var time_param = [party_name, head];
 
         connection.query(time_sql, time_param, function(err, data) {
             if(err) {
@@ -478,26 +485,27 @@ io.on('connection', (socket) => {
     });
 
 
-    socket.on('PartyPlace', function(data){
+    socket.on('select_place', function(data) {
 
-        var party_placelat = data.party_placelat;
-        var party_placelong = data.party_placelong;
-        var head = socket.userEmail;
+        var place_latitude = data.place_latitude;
+        var place_longitude = data.place_longitude;
+        var head = data.head;
+        var party_name = socket.party_name;
 
         var sql = 'UPDATE party_head SET party_placelat = (?), party_placelong = (?) WHERE party_head = (?)'
-        var params = [party_placelat, party_placelong, head];
+        var params = [place_latitude, place_longitude, head];
 
         connection.query(sql, params, function(err, result) {
             if (err) {
                 console.log(err);
             } else {
-                console.log('PartyPlace Success!');
-                socket.emit('PartyPlace_OK', {party_placelat: party_placelat, party_placelong, party_placelong});
+                console.log('select_place Success!');
+                io.sockets.in(party_name).emit('success_select_place', {place_latitude: place_latitude, place_longitude: place_longitude});
             }
         });
-
-
     });
+
+
 
     //실시간 위치 공유 기능
     socket.on('RTL', function(data) {
