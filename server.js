@@ -414,6 +414,8 @@ io.on('connection', (socket) => {
                 var member_count = result.length;
                 var time_info = party_time;
 
+                socket.head = head;
+
                 //socket.emit('member_count', {member_count: member_count});
                 io.sockets.in(party_name).emit('member_count', {member_count: member_count, time_info: time_info});
 
@@ -512,11 +514,34 @@ io.on('connection', (socket) => {
     socket.on('select_path', function(data) {
         console.log('select_path on');
 
+        var myId = socket.authId;
+        var myname = socket.userName;
+
         var path = data.path;
         var party_name = socket.party_name;
 
+        var place_latitude = socket.member_placelat;
+        var place_longitude = socket.member_placelong;
+
         socket.emit('success_select_path');
-        io.sockets.in(party_name).emit('path_info', {path: path});
+        io.sockets.in(party_name).emit('path_info', {path: path, myId: myId, myname: myname, place_latitude: place_latitude, place_longitude: place_longitude});
+
+        /*
+        var sql = 'select * from party_member where party_member = ?'
+        var param = [myId];
+
+        connection.query(sql, param, function(err, result) {
+            if(err) {
+                console.log(err);
+            } else {
+                var place_latitude = result[0].party_member_placelat;
+                var place_longitude = result[0].party_member_placelong;
+
+                socket.emit('success_select_path');
+                io.sockets.in(party_name).emit('path_info', {path: path, myId: myId, myname: myname, place_latitude: place_latitude, place_longitude: place_longitude});
+            }
+        }); */
+
     });
 
 
