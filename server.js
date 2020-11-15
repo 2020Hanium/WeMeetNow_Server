@@ -487,6 +487,8 @@ io.on('connection', (socket) => {
 
     socket.on('select_place', function(data) {
 
+        console.log('select_place on');
+
         var place_latitude = data.place_latitude;
         var place_longitude = data.place_longitude;
         var head = data.head;
@@ -500,9 +502,21 @@ io.on('connection', (socket) => {
                 console.log(err);
             } else {
                 console.log('select_place Success!');
-                io.sockets.in(party_name).emit('success_select_place', {place_latitude: place_latitude, place_longitude: place_longitude});
+                socket.emit('success_select_place');
+                io.sockets.in(party_name).emit('place_info', {place_latitude: place_latitude, place_longitude: place_longitude});
+//              io.sockets.in(party_name).emit('success_select_place', {place_latitude: place_latitude, place_longitude: place_longitude});
             }
         });
+    });
+
+    socket.on('select_path', function(data) {
+        console.log('select_path on');
+
+        var path = data.path;
+        var party_name = socket.party_name;
+
+        socket.emit('success_select_path');
+        io.sockets.in(party_name).emit('path_info', {path: path});
     });
 
 
@@ -511,11 +525,13 @@ io.on('connection', (socket) => {
     socket.on('RTL', function(data) {
         console.log('RTL On');
 
+        var myId = socket.authId;
+        var myname = socket.userName;
         var party_name = socket.party_name;
         var nowlat = data.nowlat;
         var nowlong = data.nowlong;
 
-        io.sockets.in(party_name).emit('nowLocation', {nowlat: nowlat, nowlong: nowlong});
+        io.sockets.in(party_name).emit('nowLocation', {nowlat: nowlat, nowlong: nowlong, myname: myname, myId: myId});
 
 
     });
