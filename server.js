@@ -162,24 +162,6 @@ io.on('connection', (socket) => {
                 }
             }
         });
-/*
-        if (dupleCounter == 0) {
-
-            for (i = 0; i <= (socketList.length) - 1; i++) {
-                if (socketList[i].authId == receiver) {
-                    findResult = true;
-                    var receiverName = socketList[i].userName
-
-                    console.log(receiver + '/' + receiverName + "is founded!");
-                    socket.emit("ok_add_friend", { id: receiverName });
-
-                } else { console.log("Searching...") }
-            }
-
-            if (findResult == false) {
-                socket.emit("false_add_friend");
-            }
-        } */
     });
 
     //친신 온거 알려주는 기능
@@ -278,7 +260,6 @@ io.on('connection', (socket) => {
     });
 
     //파티개설
-    //받아올 값 : party_name, party_time, members
 
     socket.on('open_party', function (open_data) {
 
@@ -349,7 +330,6 @@ io.on('connection', (socket) => {
     });
 
     //파티 초대에 응했을 경우의 기능
-    //받아올 값 : total_partyCount, member_placelat, member_placelong, head, party_name
 
     socket.on('join_party', function (join_data) {
         console.log('join_party on')
@@ -363,6 +343,8 @@ io.on('connection', (socket) => {
         var member = socket.authId;
         var head = join_data.head;
         var party_name = join_data.party_name;
+
+        var arrive = false;
 
         socket.member_placelat = member_placelat;
         socket.member_placelong = member_placelong;
@@ -384,8 +366,8 @@ io.on('connection', (socket) => {
             }
         });
 
-        var sql = 'INSERT INTO party_member (party_member, party_head, party_name, party_member_placelat, party_member_placelong) VALUES (?, ?, ?, ?, ?)';
-        var params = [member, head, party_name, member_placelat, member_placelong];
+        var sql = 'INSERT INTO party_member (party_member, party_head, party_name, party_member_placelat, party_member_placelong, arrive) VALUES (?, ?, ?, ?, ?, ?)';
+        var params = [member, head, party_name, member_placelat, member_placelong, arrive];
 
         connection.query(sql, params, function (err, result) {
             if (err) {
@@ -416,7 +398,6 @@ io.on('connection', (socket) => {
 
                 socket.head = head;
 
-                //socket.emit('member_count', {member_count: member_count});
                 io.sockets.in(party_name).emit('member_count', {member_count: member_count, time_info: time_info});
 
                 if (total_partyCount == member_count) {
@@ -506,7 +487,6 @@ io.on('connection', (socket) => {
                 console.log('select_place Success!');
                 socket.emit('success_select_place');
                 io.sockets.in(party_name).emit('place_info', {place_latitude: place_latitude, place_longitude: place_longitude});
-//              io.sockets.in(party_name).emit('success_select_place', {place_latitude: place_latitude, place_longitude: place_longitude});
             }
         });
     });
@@ -526,39 +506,99 @@ io.on('connection', (socket) => {
         socket.emit('success_select_path');
         io.sockets.in(party_name).emit('path_info', {path: path, myId: myId, myname: myname, place_latitude: place_latitude, place_longitude: place_longitude});
 
-        /*
-        var sql = 'select * from party_member where party_member = ?'
-        var param = [myId];
-
-        connection.query(sql, param, function(err, result) {
-            if(err) {
-                console.log(err);
-            } else {
-                var place_latitude = result[0].party_member_placelat;
-                var place_longitude = result[0].party_member_placelong;
-
-                socket.emit('success_select_path');
-                io.sockets.in(party_name).emit('path_info', {path: path, myId: myId, myname: myname, place_latitude: place_latitude, place_longitude: place_longitude});
-            }
-        }); */
-
     });
-
-
 
     //실시간 위치 공유 기능
     socket.on('RTL', function(data) {
         console.log('RTL On');
 
+        var arrive = true;
+        var head = socket.head;
         var myId = socket.authId;
         var myname = socket.userName;
         var party_name = socket.party_name;
+
         var nowlat = data.nowlat;
         var nowlong = data.nowlong;
 
         io.sockets.in(party_name).emit('nowLocation', {nowlat: nowlat, nowlong: nowlong, myname: myname, myId: myId});
 
+        var sql = 'select * from party_head where party_head = ?'
+        var param = [head];
+
+        connection.query(sql, param, function(err, result) {
+            if(err) {
+                console.log(err);
+            } else {
+                var party_placelat = result[0].party_placelat;
+                var party_placelong = result[0].party_placelong;
+
+                var sum_lat = ((party_placelat * 1000000) - (nowlat * 1000000))/1000000;
+                var abs_lat = Math.abs(sum_lat);
+
+                var sum_long = ((party_placelong * 1000000) - (nowlong * 1000000))/1000000;
+                var abs_long = Math.abs(sum_long);
+
+                if (abs_lat <= 0.0005 && abs_long <= 0.0005) {
+
+                    console.log('member_update');
+
+                    var sql_arrive = 'UPDATE party_member SET arrive = (?) WHERE party_head = (?) and party_member = (?)'
+                    var param_arrive = [arrive, head, myId];
+
+                    connection.query(sql_arrive, param_arrive, function(err, result_param) {
+                        if(err) {
+                            console.log(err);
+                        } else {
+
+                            var sql_check = 'select * from party_member where party_head = (?) and arrive = (?)'
+                            var param_check = [head, arrive];
+
+                            connection.query(sql_check, param_check, function(err, result_check) {
+                                if(err) {
+                                    console.log(err);
+                                } else {
+                                    var arrival_cnt = result_check.length;
+                                    io.sockets.in(party_name).emit('arrival', {arrival_cnt: arrival_cnt});
+                                    console.log('arrival_cnt send');
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+        })
 
     });
 
+
+    socket.on('party_finish', function(data) {
+
+        var party_name = data.name;
+        var head = socket.head;
+
+        var sql = 'DELETE FROM party_member where party_name = (?)'
+        var param = [party_name];
+
+        var sql_head = 'DELETE FROM party_head where party_head = (?)'
+        var param_head = [head];
+
+        connection.query(sql, param, function(err, result) {
+            if(err) {
+                console.log(err);
+            } else {
+                console.log('member_delete');
+                socket.emit('member_delete');
+
+                connection.query(sql_head, param_head, function(err, result) {
+                    if(err) {
+                        console.log(err);
+                    } else {
+                        console.log('head_delete');
+                        socket.emit('head_delete');
+                    }
+                });
+            }
+        });
+    });
 });
